@@ -1,0 +1,33 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Url {
+  id         Int       @id @default(autoincrement())
+  short_code String    @unique
+  long_url   String
+  created_at DateTime  @default(now()) @db.Timestamptz()
+  updated_at DateTime? @updatedAt @db.Timestamptz()
+  clicks     Click[]
+}
+
+model Click {
+  id         Int      @id @default(autoincrement())
+  url_id     Int
+  url        Url      @relation(fields: [url_id], references: [id])
+  clicked_at DateTime @default(now()) @db.Timestamptz()
+  ip         String?
+  user_agent String?  @db.Text
+  country    String?
+  referrer   String?
+}
