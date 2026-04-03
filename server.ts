@@ -1,9 +1,12 @@
 import express from "express";
+import cors from "cors";
+
 import { createShortUrl, redirectUrl } from "./controllers/url";
 import { connectRedis } from "./lib/redis";
 
 const app = express();
 
+app.use(cors());
 app.set("trust proxy", 1);
 app.use(express.json({ limit: "50mb" }));
 
