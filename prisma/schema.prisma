@@ -15,10 +15,14 @@ datasource db {
 model Url {
   id         Int       @id @default(autoincrement())
   short_code String    @unique
-  long_url   String
+  long_url   String    @db.Text
   created_at DateTime  @default(now()) @db.Timestamptz()
   updated_at DateTime? @updatedAt @db.Timestamptz()
-  clicks     Click[]
+
+  user_id Int?
+  user    User? @relation(fields: [user_id], references: [id])
+
+  clicks Click[]
 }
 
 model Click {
@@ -30,4 +34,49 @@ model Click {
   user_agent String?  @db.Text
   country    String?
   referrer   String?
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  email     String   @unique
+  password  String
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz()
+
+  urls          Url[]
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id         Int       @id @default(autoincrement())
+  tokenHash  String    @unique
+  deviceId   String
+  userAgent  String?   @db.Text
+  ip         String?
+  expiresAt  DateTime  @db.Timestamptz()
+  revokedAt  DateTime? @db.Timestamptz()
+  replacedBy String? // hash of the next token in the rotation chain
+  createdAt  DateTime  @default(now()) @db.Timestamptz()
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  eventType  String
+  actorId    Int?
+  actorEmail String?
+  ip         String?
+  userAgent  String?
+  meta       Json?
+  createdAt  DateTime @default(now()) @db.Timestamptz()
+
+  @@index([actorId])
+  @@index([eventType])
+  @@index([createdAt])
 }

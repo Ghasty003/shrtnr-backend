@@ -1,9 +1,10 @@
 import type { Request, Response } from "express";
 
 import { prisma } from "../lib/prisma";
-import generateShortCode from "../lib/generateShortCode";
+import generateShortCode from "../utils/generateShortCode";
 import redisClient from "../lib/redis";
-import queue from "../lib/queue";
+import queue from "../queues/analytics";
+import { ANALYTICS_JOB_NAMES } from "../jobs/analytics";
 
 export async function createShortUrl(req: Request, res: Response) {
   try {
@@ -51,7 +52,7 @@ export async function redirectUrl(req: Request, res: Response) {
       // update the click data
       // add the click tracking analytics to queue
       queue.add(
-        "save-analytics",
+        ANALYTICS_JOB_NAMES.SAVE_CLICK,
         {
           url_id: id,
           ip: req.ip || null,

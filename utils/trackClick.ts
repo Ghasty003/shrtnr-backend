@@ -1,6 +1,5 @@
 import geoip from "geoip-lite";
-import { prisma } from "./prisma";
-
+import { prisma } from "../lib/prisma";
 export default async function trackClick({
   url_id,
   ip,
