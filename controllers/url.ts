@@ -5,9 +5,12 @@ import generateShortCode from "../utils/generateShortCode";
 import redisClient from "../lib/redis";
 import queue from "../queues/analytics";
 import { ANALYTICS_JOB_NAMES } from "../jobs/analytics";
+import { AuditEvent, log } from "../services/audit";
 
 export async function createShortUrl(req: Request, res: Response) {
   try {
+    const user = (req as any).user;
+
     const { long_url } = req.body;
 
     if (!long_url || typeof long_url !== "string") {
@@ -21,6 +24,16 @@ export async function createShortUrl(req: Request, res: Response) {
         long_url,
         short_code,
       },
+    });
+
+    // log to db - new url shortened.
+    log({
+      eventType: AuditEvent.URL_SHORTENED,
+      actorEmail: user?.email,
+      actorId: user?.sub,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+      meta: { long_url },
     });
 
     return res.status(201).json({
@@ -41,6 +54,8 @@ export async function createShortUrl(req: Request, res: Response) {
 
 export async function redirectUrl(req: Request, res: Response) {
   try {
+    const user = (req as any).user;
+
     const { code } = req.params;
 
     // first check if the url exists in the redis database and serve the longurl from there
@@ -67,6 +82,16 @@ export async function redirectUrl(req: Request, res: Response) {
           },
         },
       );
+
+      // log to db - link clicked/redirection happens.
+      log({
+        eventType: AuditEvent.URL_REDIRECTED,
+        actorEmail: user?.email,
+        actorId: user?.sub,
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+        meta: { long_url },
+      });
 
       return res.redirect(long_url);
     }
@@ -109,6 +134,16 @@ export async function redirectUrl(req: Request, res: Response) {
         },
       },
     );
+
+    // log to db - link clicked/redirection happens.
+    log({
+      eventType: AuditEvent.URL_REDIRECTED,
+      actorEmail: user?.email,
+      actorId: user?.sub,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+      meta: { long_url: url.long_url },
+    });
 
     return res.redirect(url.long_url);
   } catch (error: any) {

@@ -17,8 +17,9 @@ export enum AuditEvent {
   LOGOUT = "LOGOUT",
   LOGOUT_ALL = "LOGOUT_ALL",
 
-  // App events (wire these up later as you build)
+  // App events
   URL_SHORTENED = "URL_SHORTENED",
+  URL_REDIRECTED = "URL_REDIRECTED",
 }
 
 export async function log(payload: WriteAuditLogJobData): Promise<void> {

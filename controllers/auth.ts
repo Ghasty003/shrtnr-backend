@@ -14,7 +14,13 @@ const isProd = process.env.NODE_ENV === "production";
 export async function register(req: Request, res: Response) {
   try {
     const { username, email, password } = req.body;
-    await initiateRegistration({ username, email, password });
+    await initiateRegistration({
+      username,
+      email,
+      password,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
     return res.status(200).json({
       success: true,
       message: "OTP sent. Check your email.",

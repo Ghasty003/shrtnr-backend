@@ -42,7 +42,7 @@ export async function initiateRegistration(payload: RegisterPayload) {
   if (existing) {
     const field = existing.email === email ? "email" : "username";
 
-    await log({
+    log({
       eventType: AuditEvent.REGISTRATION_INITIATED,
       actorEmail: email,
       ip,

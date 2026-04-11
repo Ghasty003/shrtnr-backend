@@ -8,7 +8,12 @@ import cookieParser from "cookie-parser";
 
 const app = express();
 
-app.use(cors({ credentials: true }));
+app.use(
+  cors({
+    credentials: true,
+    exposedHeaders: ["retry-after", "ratelimit", "ratelimit-policy"],
+  }),
+);
 app.use(cookieParser());
 app.set("trust proxy", 1);
 app.use(express.json({ limit: "50mb" }));
