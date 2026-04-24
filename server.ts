@@ -12,6 +12,7 @@ app.use(
   cors({
     credentials: true,
     exposedHeaders: ["retry-after", "ratelimit", "ratelimit-policy"],
+    origin: ["http://localhost:5173"],
   }),
 );
 app.use(cookieParser());

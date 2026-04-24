@@ -45,15 +45,19 @@ model Click {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique
-  email     String   @unique
-  password  String
-  verified  Boolean  @default(false)
-  createdAt DateTime @default(now()) @db.Timestamptz()
+  id               Int      @id @default(autoincrement())
+  username         String   @unique
+  email            String   @unique
+  password         String
+  verified         Boolean  @default(false)
+  createdAt        DateTime @default(now()) @db.Timestamptz()
+  twoFactorEnabled Boolean  @default(false)
+  twoFactorSecret  String?
+  autoCopy         Boolean  @default(true)
 
   urls          Url[]
   refreshTokens RefreshToken[]
+  recoveryCodes RecoveryCode[]
 }
 
 model RefreshToken {
@@ -87,4 +91,15 @@ model AuditLog {
   @@index([actorId])
   @@index([eventType])
   @@index([createdAt])
+}
+
+model RecoveryCode {
+  id        Int      @id @default(autoincrement())
+  codeHash  String
+  used      Boolean  @default(false)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @db.Timestamptz()
+
+  @@index([userId])
 }
