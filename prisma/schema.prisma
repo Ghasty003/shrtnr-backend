@@ -12,10 +12,17 @@ datasource db {
   provider = "postgresql"
 }
 
+enum UrlStatus {
+  ACTIVE
+  DISABLED
+}
+
 model Url {
   id         Int       @id @default(autoincrement())
   short_code String    @unique
   long_url   String    @db.Text
+  status     UrlStatus @default(ACTIVE)
+  expires_at DateTime? @db.Timestamptz()
   created_at DateTime  @default(now()) @db.Timestamptz()
   updated_at DateTime? @updatedAt @db.Timestamptz()
 
@@ -34,18 +41,23 @@ model Click {
   user_agent String?  @db.Text
   country    String?
   referrer   String?
+  device     String? // "Mobile" | "Tablet" | "Desktop"
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique
-  email     String   @unique
-  password  String
-  verified  Boolean  @default(false)
-  createdAt DateTime @default(now()) @db.Timestamptz()
+  id               Int      @id @default(autoincrement())
+  username         String   @unique
+  email            String   @unique
+  password         String
+  verified         Boolean  @default(false)
+  createdAt        DateTime @default(now()) @db.Timestamptz()
+  twoFactorEnabled Boolean  @default(false)
+  twoFactorSecret  String?
+  autoCopy         Boolean  @default(true)
 
   urls          Url[]
   refreshTokens RefreshToken[]
+  recoveryCodes RecoveryCode[]
 }
 
 model RefreshToken {
@@ -79,4 +91,15 @@ model AuditLog {
   @@index([actorId])
   @@index([eventType])
   @@index([createdAt])
+}
+
+model RecoveryCode {
+  id        Int      @id @default(autoincrement())
+  codeHash  String
+  used      Boolean  @default(false)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @db.Timestamptz()
+
+  @@index([userId])
 }

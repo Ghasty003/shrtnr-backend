@@ -11,19 +11,19 @@ import {
 } from "../utils/token";
 import { ConflictError, AuthError, ValidationError } from "./errors";
 import { log, AuditEvent } from "./audit";
+import { create2FAPendingSession } from "./twoFactor";
 import notificationQueue from "../queues/notification";
 import { NOTIFICATION_JOB_NAMES } from "../jobs/notification";
 
-const OTP_TTL = 60 * 10; // 10 minutes
+const OTP_TTL = 60 * 10;
 const MAX_OTP_ATTEMPTS = 5;
 
-// Shared retry options for notification jobs
 const notificationJobOptions = {
   attempts: 3,
   backoff: { type: "exponential" as const, delay: 2000 },
 };
 
-// Registration
+// ─── Registration ─────────────────────────────────────────────────────────────
 
 interface RegisterPayload {
   username: string;
@@ -41,15 +41,13 @@ export async function initiateRegistration(payload: RegisterPayload) {
   });
   if (existing) {
     const field = existing.email === email ? "email" : "username";
-
-    await log({
+    log({
       eventType: AuditEvent.REGISTRATION_INITIATED,
       actorEmail: email,
       ip,
       userAgent,
       meta: { reason: `${field}_already_exists` },
     });
-
     throw new ConflictError(`This ${field} is already in use.`);
   }
 
@@ -57,7 +55,6 @@ export async function initiateRegistration(payload: RegisterPayload) {
   const otp = generateOtp();
   const hashedOtp = await hashOtp(otp);
 
-  // Hold registration data in Redis until OTP is verified
   const pendingKey = `pending:${email}`;
   const otpKey = `otp:${email}`;
 
@@ -126,13 +123,11 @@ export async function verifyRegistrationOtp(
   const valid = await verifyOtp(otp, hash);
 
   if (!valid) {
-    // increment attempt count
     await redisClient.set(
       otpKey,
       JSON.stringify({ hash, attempts: attempts + 1 }),
       { KEEPTTL: true },
     );
-
     log({
       eventType: AuditEvent.OTP_INVALID,
       actorEmail: email,
@@ -140,7 +135,6 @@ export async function verifyRegistrationOtp(
       userAgent,
       meta: { attempts: attempts + 1 },
     });
-
     throw new ValidationError("Invalid OTP.");
   }
 
@@ -153,17 +147,14 @@ export async function verifyRegistrationOtp(
       userAgent,
       meta: { reason: "pending_data_missing_after_valid_otp" },
     });
-
     throw new ValidationError("Registration session expired.");
   }
 
   const { username, password } = JSON.parse(pendingRaw);
-
   const user = await prisma.user.create({
     data: { username, email, password, verified: true },
   });
 
-  // clean up Redis
   await redisClient.del([otpKey, pendingKey]);
 
   notificationQueue
@@ -172,7 +163,9 @@ export async function verifyRegistrationOtp(
       { to: email, username },
       notificationJobOptions,
     )
-    .catch((err) => console.error("[Queue] Failed to enqueue OTP email:", err));
+    .catch((err) =>
+      console.error("[Queue] Failed to enqueue welcome email:", err),
+    );
 
   log({
     eventType: AuditEvent.USER_CREATED,
@@ -186,7 +179,7 @@ export async function verifyRegistrationOtp(
   return user;
 }
 
-// Login
+// ─── Login ────────────────────────────────────────────────────────────────────
 
 interface LoginPayload {
   email: string;
@@ -196,11 +189,38 @@ interface LoginPayload {
   ip?: string;
 }
 
-export async function login(payload: LoginPayload) {
+export type LoginResult =
+  | { requiresTwoFactor: true; sessionKey: string }
+  | {
+      requiresTwoFactor: false;
+      accessToken: string;
+      refreshToken: string;
+      deviceId: string;
+      user: {
+        id: number;
+        username: string;
+        email: string;
+        autoCopy: boolean;
+        twoFactorEnabled: boolean;
+      };
+    };
+
+export async function login(payload: LoginPayload): Promise<LoginResult> {
   const { email, password, userAgent, ip } = payload;
 
-  const user = await prisma.user.findUnique({ where: { email } });
-  // same error for missing user and wrong password — don't leak which
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      email: true,
+      username: true,
+      password: true,
+      verified: true,
+      twoFactorEnabled: true,
+      twoFactorSecret: true,
+      autoCopy: true,
+    },
+  });
   if (!user) {
     await log({
       eventType: AuditEvent.LOGIN_FAILED,
@@ -225,7 +245,6 @@ export async function login(payload: LoginPayload) {
   }
 
   const match = await bcrypt.compare(password, user.password);
-
   if (!match) {
     await log({
       eventType: AuditEvent.LOGIN_FAILED,
@@ -240,6 +259,28 @@ export async function login(payload: LoginPayload) {
 
   const deviceId = payload.deviceId || uuidv4();
 
+  // Password is valid — check if 2FA is required before issuing tokens
+  if (user.twoFactorEnabled) {
+    const sessionKey = await create2FAPendingSession({
+      userId: user.id,
+      email: user.email,
+      deviceId,
+      userAgent,
+      ip,
+    });
+
+    log({
+      eventType: AuditEvent.LOGIN_TWO_FA_REQUIRED,
+      actorId: user.id,
+      actorEmail: email,
+      ip,
+      userAgent,
+    });
+
+    return { requiresTwoFactor: true, sessionKey };
+  }
+
+  // No 2FA — issue tokens immediately
   const { raw, hash } = generateRefreshToken();
 
   await prisma.refreshToken.create({
@@ -264,10 +305,22 @@ export async function login(payload: LoginPayload) {
     meta: { deviceId },
   });
 
-  return { accessToken, refreshToken: raw, deviceId, user };
+  return {
+    requiresTwoFactor: false,
+    accessToken,
+    refreshToken: raw,
+    deviceId,
+    user: {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      autoCopy: user.autoCopy,
+      twoFactorEnabled: user.twoFactorEnabled,
+    },
+  };
 }
 
-// Token Rotation
+// ─── Token rotation, logout (unchanged) ──────────────────────────────────────
 
 export async function rotateRefreshToken(
   rawToken: string,
@@ -283,13 +336,11 @@ export async function rotateRefreshToken(
 
   if (!existing) throw new AuthError("Invalid refresh token.");
 
-  // Reuse detected — this token was already rotated
   if (existing.replacedBy) {
     await prisma.refreshToken.updateMany({
       where: { userId: existing.userId },
       data: { revokedAt: new Date() },
     });
-
     await log({
       eventType: AuditEvent.TOKEN_REUSE_DETECTED,
       actorId: existing.userId,
@@ -298,7 +349,6 @@ export async function rotateRefreshToken(
       userAgent,
       meta: { deviceId: existing.deviceId },
     });
-
     throw new AuthError("Token reuse detected. All sessions revoked.");
   }
 
@@ -308,7 +358,6 @@ export async function rotateRefreshToken(
 
   const { raw: newRaw, hash: newHash } = generateRefreshToken();
 
-  // Rotate: mark old token as replaced, issue new one
   await prisma.$transaction([
     prisma.refreshToken.update({
       where: { id: existing.id },
@@ -343,15 +392,12 @@ export async function rotateRefreshToken(
   return { accessToken, refreshToken: newRaw };
 }
 
-// Logout
-
 export async function logoutOne(
   rawToken: string,
   ip?: string,
   userAgent?: string,
 ) {
   const hash = hashRefreshToken(rawToken);
-
   const token = await prisma.refreshToken.findUnique({
     where: { tokenHash: hash },
   });

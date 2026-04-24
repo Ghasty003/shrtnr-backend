@@ -1,11 +1,16 @@
 import { Router } from "express";
 import auth from "./auth";
-import { createShortUrl } from "../controllers/url";
+import url from "./url";
+import analytics from "./analytics";
+import profile from "./profile";
+import twoFactor from "./twoFactor";
 
 const router = Router();
 
-router.post("/shorten", createShortUrl);
-
+router.use("/url", url);
+router.use("/analytics", analytics);
 router.use("/auth", auth);
+router.use("/profile", profile);
+router.use("/2fa", twoFactor);
 
 export default router;

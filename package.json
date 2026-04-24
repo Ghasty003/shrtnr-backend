@@ -22,6 +22,8 @@
     "@types/node": "^25.5.0",
     "@types/nodemailer": "^8.0.0",
     "@types/pg": "^8.20.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/ua-parser-js": "^0.7.39",
     "prisma": "^7.6.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2"
@@ -35,10 +37,14 @@
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.3.2",
     "geoip-lite": "^2.0.1",
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^8.0.5",
+    "otplib": "^13.4.0",
     "pg": "^8.20.0",
-    "redis": "^5.11.0"
+    "qrcode": "^1.5.4",
+    "redis": "^5.11.0",
+    "ua-parser-js": "^2.0.9"
   }
 }

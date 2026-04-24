@@ -14,7 +14,13 @@ const isProd = process.env.NODE_ENV === "production";
 export async function register(req: Request, res: Response) {
   try {
     const { username, email, password } = req.body;
-    await initiateRegistration({ username, email, password });
+    await initiateRegistration({
+      username,
+      email,
+      password,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
     return res.status(200).json({
       success: true,
       message: "OTP sent. Check your email.",
@@ -54,7 +60,18 @@ export async function loginHandler(req: Request, res: Response) {
       ip: req.ip,
     });
 
-    // Refresh token in httpOnly cookie; access token in body
+    // 2FA required — return sessionKey only, no tokens yet
+    if (result.requiresTwoFactor) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          requiresTwoFactor: true,
+          sessionKey: result.sessionKey,
+        },
+      });
+    }
+
+    // No 2FA — issue tokens immediately
     res.cookie("refreshToken", result.refreshToken, {
       httpOnly: true,
       secure: isProd,
@@ -65,12 +82,15 @@ export async function loginHandler(req: Request, res: Response) {
     return res.status(200).json({
       success: true,
       data: {
+        requiresTwoFactor: false,
         accessToken: result.accessToken,
         deviceId: result.deviceId,
         user: {
           id: result.user.id,
           username: result.user.username,
           email: result.user.email,
+          autoCopy: result.user.autoCopy,
+          twoFactorEnabled: result.user.twoFactorEnabled,
         },
       },
     });
@@ -120,7 +140,6 @@ export async function logout(req: Request, res: Response) {
 
 export async function logoutAllDevices(req: Request, res: Response) {
   try {
-    // userId is attached by isUser middleware
     await logoutAll((req as any).user.sub, req.ip, req.headers["user-agent"]);
     res.clearCookie("refreshToken");
     return res
