@@ -7,6 +7,10 @@ import twoFactor from "./twoFactor";
 
 const router = Router();
 
+router.get("/test", (req, res) => {
+  res.json("Working...");
+});
+
 router.use("/url", url);
 router.use("/analytics", analytics);
 router.use("/auth", auth);
