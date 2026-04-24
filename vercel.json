@@ -1,15 +1,10 @@
 {
-    "version": 2,
-    "builds": [
-      {
-        "src": "server.ts",
-        "use": "@vercel/node"
-      }
-    ],
-    "routes": [
-      {
-        "src": "/(.*)",
-        "dest": "/server.ts"
-      }
-    ]
-  }
+  "version": 2,
+  "buildCommand": "prisma generate && tsc",
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/server.ts"
+    }
+  ]
+}
