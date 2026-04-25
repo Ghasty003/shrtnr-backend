@@ -12,7 +12,7 @@ app.use(
   cors({
     credentials: true,
     exposedHeaders: ["retry-after", "ratelimit", "ratelimit-policy"],
-    origin: ["http://localhost:5173"],
+    origin: ["http://localhost:5173", "https://shrtnr-six.vercel.app"],
   }),
 );
 app.use(cookieParser());
