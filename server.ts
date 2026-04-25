@@ -29,8 +29,9 @@ app.use("/api/v1", routes);
 async function bootstrap() {
   await connectRedis();
 
-  app.listen(8000, () => {
-    console.log("server started at http://localhost:8000");
+  const port = process.env.PORT || 8000;
+  app.listen(port, () => {
+    console.log(`server started at http://localhost:${port}`);
   });
 }
 
