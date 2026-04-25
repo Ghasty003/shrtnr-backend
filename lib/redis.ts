@@ -7,7 +7,7 @@ const redisClient = createClient({
   //   host: process.env.REDIS_URL || "127.0.0.1",
   //   port: 16042,
   // },
-  password: process.env.REDIS_PASSWORD || "",
+  // password: process.env.REDIS_PASSWORD || "",
 });
 
 redisClient.on("error", (err) => console.error("Redis error:", err));
