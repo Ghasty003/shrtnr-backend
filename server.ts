@@ -19,8 +19,8 @@ app.use(cookieParser());
 app.set("trust proxy", 1);
 app.use(express.json({ limit: "50mb" }));
 
-app.get("/:code", redirectUrl);
 app.use("/api/v1", routes);
+app.get("/:code", redirectUrl);
 
 // app.use("*", (_, res) => {
 //   res.status(404).json("App is working but route not found");
